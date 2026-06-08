@@ -1,7 +1,16 @@
-FROM golang:1.24
+# Stage 1: build
+FROM golang:1.24-alpine AS builder
 WORKDIR /app
-COPY . .
+COPY go.mod go.sum ./
 RUN go mod download
+COPY . .
 RUN go build -o orders .
+
+# Stage 2: imagen final minima
+FROM alpine:3.21
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+WORKDIR /app
+COPY --from=builder /app/orders .
+USER appuser
 EXPOSE 8080
 CMD ["./orders"]
