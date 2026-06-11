@@ -1,0 +1,302 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      catalog: ${{ steps.changes.outputs.catalog }}
+      cart: ${{ steps.changes.outputs.cart }}
+      checkout: ${{ steps.changes.outputs.checkout }}
+      orders: ${{ steps.changes.outputs.orders }}
+      ui: ${{ steps.changes.outputs.ui }}
+      admin: ${{ steps.changes.outputs.admin }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            catalog:
+              - 'app/src/catalog/**'
+            cart:
+              - 'app/src/cart/**'
+            checkout:
+              - 'app/src/checkout/**'
+            orders:
+              - 'app/src/orders/**'
+            ui:
+              - 'app/src/ui/**'
+            admin:
+              - 'app/src/admin/**'
+
+  go-lint:
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.catalog == 'true' || needs.changes.outputs.orders == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+      - uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: app/src
+
+  go-test:
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.catalog == 'true' || needs.changes.outputs.orders == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+      - name: Run Go tests
+        run: |
+          cd app/src
+          go test -v -race -coverprofile=coverage.out ./catalog/... ./orders/...
+      - uses: codecov/codecov-action@v3
+        with:
+          files: ./app/src/coverage.out
+
+  python-lint:
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.cart == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          cd app/src/cart
+          pip install -r requirements.txt
+          pip install flake8 black isort pylint
+      - name: Lint with flake8
+        run: |
+          cd app/src/cart
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Format check with black
+        run: |
+          cd app/src/cart
+          black --check .
+      - name: Sort imports with isort
+        run: |
+          cd app/src/cart
+          isort --check-only .
+
+  python-test:
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.cart == 'true'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: retailpassword
+          POSTGRES_DB: cartdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          cd app/src/cart
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      - name: Run tests
+        run: |
+          cd app/src/cart
+          pytest --cov=. --cov-report=xml
+        env:
+          RETAIL_CATALOG_PERSISTENCE_ENDPOINT: localhost:5432
+          DB_PASSWORD: retailpassword
+      - uses: codecov/codecov-action@v3
+        with:
+          files: ./app/src/cart/coverage.xml
+
+  typescript-lint:
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.ui == 'true' || needs.changes.outputs.checkout == 'true' || needs.changes.outputs.admin == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: |
+          cd app/src
+          npm ci --workspaces
+      - name: ESLint
+        run: |
+          cd app/src
+          npm run lint --workspaces
+      - name: TypeScript check
+        run: |
+          cd app/src
+          npm run type-check --workspaces
+
+  typescript-test:
+    needs: changes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.ui == 'true' || needs.changes.outputs.checkout == 'true' || needs.changes.outputs.admin == 'true'
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: retailpassword
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: |
+          cd app/src
+          npm ci --workspaces
+      - name: Run tests
+        run: |
+          cd app/src
+          npm test --workspaces
+      - uses: codecov/codecov-action@v3
+
+  build-images:
+    needs: [go-lint, go-test, python-lint, python-test, typescript-lint, typescript-test]
+    runs-on: ubuntu-latest
+    if: success() && github.event_name == 'push'
+    strategy:
+      matrix:
+        service: [catalog, cart, checkout, orders, ui, admin]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v2
+      - uses: docker/build-push-action@v4
+        with:
+          context: app
+          file: app/docker-compose.yml
+          push: false
+          target: ${{ matrix.service }}
+          tags: retail-${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  
+      
+      - name: Run GitLeaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: true
+
+  dependency-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check all required dependency files exist
+        run: |
+          echo "🔍 Validating dependency file structure..."
+          
+          # Go services
+          for service in catalog orders; do
+            [ -f "src/$service/go.mod" ] || (echo "Missing src/$service/go.mod" && exit 1)
+            [ -f "src/$service/go.sum" ] || (echo "Missing src/$service/go.sum" && exit 1)
+          done
+          
+          # Python service
+          [ -f "src/cart/requirements.txt" ] || (echo "Missing src/cart/requirements.txt" && exit 1)
+          
+          # TypeScript services
+          for service in ui admin checkout; do
+            [ -f "src/$service/package.json" ] || (echo "Missing src/$service/package.json" && exit 1)
+            [ -f "src/$service/package-lock.json" ] || (echo "Missing src/$service/package-lock.json" && exit 1)
+          done
+          
+          echo "All dependency files present"
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Go dependencies
+        run: |
+          cd app/src
+          go mod verify
+      - name: Check Python dependencies
+        run: |
+          pip install safety
+          cd app/src/cart
+          safety check --json || true
+      - uses: npm/setup-npm@v2
+      - name: Check npm dependencies
+        run: |
+          cd app/src
+          npm audit --audit-level=moderate || true
+
+  ci-status:
+    needs: [go-lint, go-test, python-lint, python-test, typescript-lint, typescript-test, security-scan]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check CI status
+        run: |
+          if [ "${{ needs.go-lint.result }}" != "success" ] || \
+             [ "${{ needs.go-test.result }}" != "success" ] || \
+             [ "${{ needs.python-lint.result }}" != "success" ] || \
+             [ "${{ needs.python-test.result }}" != "success" ] || \
+             [ "${{ needs.typescript-lint.result }}" != "success" ] || \
+             [ "${{ needs.typescript-test.result }}" != "success" ]; then
+            exit 1
+          fi
