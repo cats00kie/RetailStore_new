@@ -74,7 +74,9 @@ func NewRepository(config config.DatabaseConfiguration) (CatalogRepository, erro
 	fmt.Println("Running database migration...")
 
 	// Migrate the schema
-	db.AutoMigrate(&model.Product{})
+	if err := db.AutoMigrate(&model.Product{}); err != nil {
+		return nil, fmt.Errorf("database migration failed: %w", err)
+	}
 
 	fmt.Println("Database migration complete")
 
