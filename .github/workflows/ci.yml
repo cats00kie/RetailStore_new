@@ -116,7 +116,7 @@ jobs:
         run: |
           if grep -q '"packageManager": *"yarn' package.json || [ -f yarn.lock ]; then
             corepack enable
-            yarn install --immutable || yarn install
+            yarn install --no-immutable
             yarn build
           else
             npm install
