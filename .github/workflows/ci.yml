@@ -95,6 +95,36 @@ jobs:
         run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
   # ──────────────────────────────────────────────
+  # ETAPA 1 — Análisis estático: TypeScript ESLint (ui, admin, checkout)
+  # ──────────────────────────────────────────────
+  ts-lint:
+    name: TypeScript static analysis (ESLint)
+    needs: changes
+    if: needs.changes.outputs.ui == 'true' || needs.changes.outputs.admin == 'true' || needs.changes.outputs.checkout == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ui, admin, checkout]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        working-directory: src/${{ matrix.service }}
+        run: |
+          if grep -q '"packageManager": *"yarn' package.json || [ -f yarn.lock ]; then
+            corepack enable
+            yarn install --no-immutable
+          else
+            npm install
+          fi
+      - name: Run ESLint
+        working-directory: src/${{ matrix.service }}
+        run: npm run lint
+
+  # ──────────────────────────────────────────────
   # ETAPA 1 — Build/type-check: TypeScript (ui, admin, checkout)
   # ──────────────────────────────────────────────
   ts-build:
@@ -129,7 +159,7 @@ jobs:
   # ──────────────────────────────────────────────
   build-images:
     name: Build image
-    needs: [go-lint, python-lint, ts-build]
+    needs: [go-lint, python-lint, ts-lint, ts-build]
     if: always() && !cancelled() && !contains(needs.*.result, 'failure')
     runs-on: ubuntu-latest
     strategy:
@@ -200,13 +230,13 @@ jobs:
   # ──────────────────────────────────────────────
   ci-status:
     name: CI Quality Gate
-    needs: [go-lint, python-lint, ts-build, build-images, gitleaks, dependency-check]
+    needs: [go-lint, python-lint, ts-lint, ts-build, build-images, gitleaks, dependency-check]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Verify required jobs
         run: |
-          results="${{ needs.go-lint.result }} ${{ needs.python-lint.result }} ${{ needs.ts-build.result }} ${{ needs.build-images.result }} ${{ needs.gitleaks.result }} ${{ needs.dependency-check.result }}"
+          results="${{ needs.go-lint.result }} ${{ needs.python-lint.result }} ${{ needs.ts-lint.result }} ${{ needs.ts-build.result }} ${{ needs.build-images.result }} ${{ needs.gitleaks.result }} ${{ needs.dependency-check.result }}"
           echo "Resultados de jobs: $results"
           for r in $results; do
             if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then

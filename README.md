@@ -167,3 +167,36 @@ app/
     ├── ui/             # TypeScript/Express - Frontend
     └── admin/          # TypeScript/Express - Panel de administración
 ```
+
+---
+
+## Pipeline CI/CD
+
+El pipeline está definido en `.github/workflows/ci.yml` y se ejecuta en cada push o PR a las ramas `main`, `test` y `develop`.
+
+### Etapas
+
+| Job | Descripción | Servicios |
+|-----|-------------|-----------|
+| `go-lint` | Análisis estático con `golangci-lint` | catalog, orders |
+| `python-lint` | Análisis estático con `flake8` | cart |
+| `ts-lint` | Análisis estático con **ESLint** | ui, admin, checkout |
+| `ts-build` | Compilación TypeScript | ui, admin, checkout |
+| `build-images` | Build de imágenes Docker | todos |
+| `gitleaks` | Detección de secretos hardcodeados | todos |
+| `dependency-check` | Auditoría de dependencias | todos |
+| `ci-status` | Quality gate final | — |
+
+### Análisis de código estático (ESLint)
+
+Los servicios TypeScript (`ui`, `admin`, `checkout`) tienen ESLint configurado con el plugin `@typescript-eslint`. La configuración está en el archivo `.eslintrc.json` de cada servicio.
+
+Para correr el análisis localmente:
+
+```bash
+cd src/ui && npm run lint
+cd src/admin && npm run lint
+cd src/checkout && npm run lint
+```
+
+Los resultados del análisis, hallazgos y recomendaciones de mejora se encuentran en el informe de entrega del proyecto.
