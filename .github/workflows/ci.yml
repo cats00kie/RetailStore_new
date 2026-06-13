@@ -1,0 +1,217 @@
+name: CI
+
+# Corre en cada PR y push a las ramas de ambiente (develop=DEV, test=TEST, main=PROD).
+# Etapas: 1 -Análisis estático por lenguaje 2 - Build de imágenes 3 - Quality gate
+on:
+  push:
+    branches: [main, develop, test]
+  pull_request:
+    branches: [main, develop, test]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write # Gitleaks comenta hallazgos en los PRs
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Detecta qué microservicio cambió para no correr todo siempre
+  # ──────────────────────────────────────────────
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      catalog: ${{ steps.filter.outputs.catalog }}
+      cart: ${{ steps.filter.outputs.cart }}
+      checkout: ${{ steps.filter.outputs.checkout }}
+      orders: ${{ steps.filter.outputs.orders }}
+      ui: ${{ steps.filter.outputs.ui }}
+      admin: ${{ steps.filter.outputs.admin }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            catalog:
+              - 'src/catalog/**'
+            cart:
+              - 'src/cart/**'
+            checkout:
+              - 'src/checkout/**'
+            orders:
+              - 'src/orders/**'
+            ui:
+              - 'src/ui/**'
+            admin:
+              - 'src/admin/**'
+
+  # ──────────────────────────────────────────────
+  # ETAPA 1 — Análisis estático: Go (catalog, orders)
+  # ──────────────────────────────────────────────
+  go-lint:
+    name: Go static analysis
+    needs: changes
+    if: needs.changes.outputs.catalog == 'true' || needs.changes.outputs.orders == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [catalog, orders]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: src/${{ matrix.service }}/go.sum
+      - name: go vet
+        working-directory: src/${{ matrix.service }}
+        run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: src/${{ matrix.service }}
+
+  # ──────────────────────────────────────────────
+  # ETAPA 1 — Análisis estático: Python (cart)
+  # ──────────────────────────────────────────────
+  python-lint:
+    name: Python static analysis
+    needs: changes
+    if: needs.changes.outputs.cart == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install linters
+        run: pip install flake8
+      - name: flake8 (errores reales)
+        working-directory: src/cart
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+  # ──────────────────────────────────────────────
+  # ETAPA 1 — Build/type-check: TypeScript (ui, admin, checkout)
+  # ──────────────────────────────────────────────
+  ts-build:
+    name: TypeScript build
+    needs: changes
+    if: needs.changes.outputs.ui == 'true' || needs.changes.outputs.admin == 'true' || needs.changes.outputs.checkout == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ui, admin, checkout]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install & build
+        working-directory: src/${{ matrix.service }}
+        run: |
+          if grep -q '"packageManager": *"yarn' package.json || [ -f yarn.lock ]; then
+            corepack enable
+            yarn install --immutable || yarn install
+            yarn build
+          else
+            npm install
+            npm run build
+          fi
+
+  # ──────────────────────────────────────────────
+  # ETAPA 2 — Build de imágenes Docker (sin publicar todavía)
+  # Prueba que las 6 imágenes compilan con sus Dockerfile multi-stage.
+  # ──────────────────────────────────────────────
+  build-images:
+    name: Build image
+    needs: [go-lint, python-lint, ts-build]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [catalog, cart, orders, checkout, ui, admin]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: src/${{ matrix.service }}
+          file: src/${{ matrix.service }}/Dockerfile
+          push: false
+          tags: retail-${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ──────────────────────────────────────────────
+  # Quality gate — Detección de secretos hardcodeados
+  # ──────────────────────────────────────────────
+  gitleaks:
+    name: Secret scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ──────────────────────────────────────────────
+  # Quality gate — Chequeo de dependencias del proyecto
+  # ──────────────────────────────────────────────
+  dependency-check:
+    name: Dependency check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - name: Go modules verify
+        run: |
+          for s in catalog orders; do
+            (cd "src/$s" && go mod verify)
+          done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python deps audit (informativo)
+        run: |
+          pip install pip-audit
+          pip-audit -r src/cart/requirements.txt || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: npm audit (informativo)
+        run: |
+          for s in ui admin; do
+            (cd "src/$s" && npm install --package-lock-only && npm audit --audit-level=high) || true
+          done
+
+  # ──────────────────────────────────────────────
+  # Quality gate final — falla si algún job obligatorio falló
+  # ──────────────────────────────────────────────
+  ci-status:
+    name: CI Quality Gate
+    needs: [go-lint, python-lint, ts-build, build-images, gitleaks, dependency-check]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required jobs
+        run: |
+          results="${{ needs.go-lint.result }} ${{ needs.python-lint.result }} ${{ needs.ts-build.result }} ${{ needs.build-images.result }} ${{ needs.gitleaks.result }} ${{ needs.dependency-check.result }}"
+          echo "Resultados de jobs: $results"
+          for r in $results; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "Quality gate FALLÓ"
+              exit 1
+            fi
+          done
+          echo "Quality gate OK"
