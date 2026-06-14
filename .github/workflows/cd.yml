@@ -1,0 +1,59 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [develop, test, main]
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Entorno a desplegar (dev / test / prod)"
+        required: true
+        default: dev
+        type: choice
+        options: [dev, test, prod]
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Guard — verifica que CI pasó y resuelve ambiente/SHA
+  # ──────────────────────────────────────────────
+  guard:
+    name: CI Gate — resolver entorno
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      environment: ${{ steps.ctx.outputs.environment }}
+      sha:         ${{ steps.ctx.outputs.sha }}
+    steps:
+      - name: Resolver entorno y SHA
+        id: ctx
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+            SHA="${{ github.sha }}"
+          else
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+            SHA="${{ github.event.workflow_run.head_sha }}"
+            case "$BRANCH" in
+              main)  ENV="prod" ;;
+              test)  ENV="test" ;;
+              *)     ENV="dev"  ;;
+            esac
+          fi
+          echo "environment=${ENV}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}"         >> $GITHUB_OUTPUT
+
+          echo "Ambiente: $ENV"
+          echo "SHA: $SHA"
