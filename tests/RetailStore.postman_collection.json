@@ -1,0 +1,815 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "RetailStore - Pruebas Funcionales",
+    "description": "Pruebas funcionales RetailStore",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Generar CUSTOMER_ID único",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var runId = 'test-' + Date.now();",
+                  "pm.collectionVariables.set('CUSTOMER_ID', runId);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CUSTOMER_ID generado correctamente', function () {",
+                  "    var cid = pm.collectionVariables.get('CUSTOMER_ID');",
+                  "    pm.expect(cid).to.match(/^test-\\d+$/);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/health",
+              "host": ["{{BASE_URL}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Catalog Service",
+      "item": [
+        {
+          "name": "Obtener productos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('La respuesta es un array', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Los productos tienen los campos esperados', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body.length).to.be.greaterThan(0);",
+                  "    var product = body[0];",
+                  "    pm.expect(product).to.have.property('id');",
+                  "    pm.expect(product).to.have.property('name');",
+                  "    pm.expect(product).to.have.property('price');",
+
+                  "    pm.collectionVariables.set('PRODUCT_ID', product.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/catalog/products",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "catalog", "products"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener un producto por ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('El producto tiene los campos esperados', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('id');",
+                  "    pm.expect(body).to.have.property('name');",
+                  "    pm.expect(body).to.have.property('price');",
+                  "    pm.expect(body).to.have.property('description');",
+                  "});",
+                  "",
+                  "pm.test('El ID del producto coincide con el solicitado', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body.id).to.eql(pm.collectionVariables.get('PRODUCT_ID'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/catalog/products/{{PRODUCT_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "catalog", "products", "{{PRODUCT_ID}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener producto inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/catalog/products/producto-que-no-existe",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "catalog", "products", "producto-que-no-existe"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener tags del catálogo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('La respuesta es un array de tags', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.be.an('array');",
+                  "    pm.expect(body.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Cada tag tiene nombre y displayName', function () {",
+                  "    var body = pm.response.json();",
+                  "    body.forEach(function(tag) {",
+                  "        pm.expect(tag).to.have.property('name');",
+                  "        pm.expect(tag).to.have.property('displayName');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/catalog/tags",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "catalog", "tags"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Filtrar productos por tag",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Solo retorna productos con el tag solicitado', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.be.an('array');",
+                  "    pm.expect(body.length).to.be.greaterThan(0);",
+                  "    body.forEach(function(product) {",
+                  "        var tagNames = product.tags.map(function(t) { return t.name; });",
+                  "        pm.expect(tagNames).to.include('clothing');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/catalog/products?tags=clothing",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "catalog", "products"],
+              "query": [{ "key": "tags", "value": "clothing" }]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cart Service",
+      "item": [
+        {
+          "name": "Obtener carrito (cliente nuevo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('El carrito tiene los campos esperados', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('customerId');",
+                  "    pm.expect(body.customerId).to.eql(pm.collectionVariables.get('CUSTOMER_ID'));",
+                  "    pm.expect(body).to.have.property('items');",
+                  "    pm.expect(body.items).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/carts/{{CUSTOMER_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "carts", "{{CUSTOMER_ID}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Agregar item al carrito",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('El item fue creado con los datos correctos', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('itemId');",
+                  "    pm.expect(body).to.have.property('quantity');",
+                  "    pm.expect(body.quantity).to.eql(2);",
+
+                  "    pm.collectionVariables.set('ITEM_ID', body.itemId);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itemId\": \"item-001\",\n  \"productId\": \"cc789f85-1476-452a-8100-9e74502198e0\",\n  \"quantity\": 2,\n  \"unitPrice\": 250\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/carts/{{CUSTOMER_ID}}/items",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "carts", "{{CUSTOMER_ID}}", "items"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener item individual del carrito",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('El item devuelto corresponde al solicitado', function () {",
+                  "    var body = pm.response.json();",
+                  "    var itemId = pm.collectionVariables.get('ITEM_ID');",
+                  "    pm.expect(body).to.have.property('itemId');",
+                  "    pm.expect(body.itemId).to.eql(itemId);",
+                  "    pm.expect(body).to.have.property('quantity');",
+                  "    pm.expect(body).to.have.property('unitPrice');",
+                  "    pm.expect(body.quantity).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/carts/{{CUSTOMER_ID}}/items/{{ITEM_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "carts", "{{CUSTOMER_ID}}", "items", "{{ITEM_ID}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener items del carrito",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('El carrito contiene al menos un item', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.be.an('array');",
+                  "    pm.expect(body.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('El item agregado está en el carrito con la cantidad correcta', function () {",
+                  "    var body = pm.response.json();",
+                  "    var itemId = pm.collectionVariables.get('ITEM_ID');",
+                  "    var found = body.find(function(i) { return i.itemId === itemId; });",
+                  "    pm.expect(found).to.exist;",
+                  "    pm.expect(found.quantity).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/carts/{{CUSTOMER_ID}}/items",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "carts", "{{CUSTOMER_ID}}", "items"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar cantidad del item (PATCH)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 202 Accepted', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "",
+                  "pm.test('La cantidad del item fue actualizada', function (done) {",
+                  "    var customerId = pm.collectionVariables.get('CUSTOMER_ID');",
+                  "    var itemId = pm.collectionVariables.get('ITEM_ID');",
+                  "    pm.sendRequest({",
+                  "        url: pm.collectionVariables.get('BASE_URL') + '/api/carts/' + customerId + '/items/' + itemId,",
+                  "        method: 'GET'",
+                  "    }, function(err, res) {",
+                  "        pm.expect(res.code).to.eql(200);",
+                  "        pm.expect(res.json().quantity).to.eql(5);",
+                  "        done();",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itemId\": \"item-001\",\n  \"quantity\": 5,\n  \"unitPrice\": 250\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/carts/{{CUSTOMER_ID}}/items",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "carts", "{{CUSTOMER_ID}}", "items"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar carrito",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 202 Accepted', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/carts/{{CUSTOMER_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "carts", "{{CUSTOMER_ID}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Agregar item para luego eliminarlo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('El item fue creado y tiene itemId', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('itemId');",
+                  "    pm.collectionVariables.set('ITEM_TO_DELETE_ID', body.itemId);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itemId\": \"item-to-delete\",\n  \"productId\": \"87e89b11-d319-446d-b9be-50adcca5224a\",\n  \"quantity\": 1,\n  \"unitPrice\": 125\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/carts/{{CUSTOMER_ID}}/items",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "carts", "{{CUSTOMER_ID}}", "items"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar item específico del carrito",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 202 Accepted', function () {",
+                  "    pm.response.to.have.status(202);",
+                  "});",
+                  "",
+                  "pm.test('El carrito queda vacío después de eliminar el item', function (done) {",
+                  "    var customerId = pm.collectionVariables.get('CUSTOMER_ID');",
+                  "    pm.sendRequest({",
+                  "        url: pm.collectionVariables.get('BASE_URL') + '/api/carts/' + customerId + '/items',",
+                  "        method: 'GET'",
+                  "    }, function(err, res) {",
+                  "        pm.expect(res.code).to.eql(200);",
+                  "        pm.expect(res.json()).to.be.an('array').that.is.empty;",
+                  "        done();",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/carts/{{CUSTOMER_ID}}/items/{{ITEM_TO_DELETE_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "carts", "{{CUSTOMER_ID}}", "items", "{{ITEM_TO_DELETE_ID}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Checkout Service",
+      "item": [
+        {
+          "name": "Actualizar checkout con datos de envío",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 o 201 OK', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "pm.test('El checkout tiene los datos de envío actualizados', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('shippingAddress');",
+                  "    pm.expect(body.shippingAddress).to.have.property('firstName');",
+                  "    pm.expect(body.shippingAddress.firstName).to.eql('Juan');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [],\n  \"shippingAddress\": {\n    \"firstName\": \"Juan\",\n    \"lastName\": \"Perez\",\n    \"email\": \"juan.perez@example.com\",\n    \"address1\": \"Av. 18 de Julio 1234\",\n    \"address2\": \"Apto 5\",\n    \"city\": \"Montevideo\",\n    \"state\": \"Montevideo\",\n    \"zip\": \"11000\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/checkout/{{CUSTOMER_ID}}/update",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "checkout", "{{CUSTOMER_ID}}", "update"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener estado del checkout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('El checkout tiene los campos esperados', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('shippingAddress');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/checkout/{{CUSTOMER_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "checkout", "{{CUSTOMER_ID}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Confirmar compra (submit) — integración Checkout→Orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('El submit retorna un orderId válido', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('orderId');",
+                  "    pm.expect(body.orderId).to.be.a('string').and.have.lengthOf.above(0);",
+                  "    pm.expect(body).to.have.property('email');",
+                  "    pm.expect(body.email).to.eql('juan.perez@example.com');",
+
+                  "    pm.collectionVariables.set('CHECKOUT_ORDER_ID', body.orderId);",
+                  "});",
+                  "",
+                  "pm.test('El submit retorna totales numéricos', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('total');",
+                  "    pm.expect(body.total).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/checkout/{{CUSTOMER_ID}}/submit",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "checkout", "{{CUSTOMER_ID}}", "submit"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Orders Service",
+      "item": [
+        {
+          "name": "Crear una orden",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('La orden fue creada con los campos esperados', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.have.property('id');",
+                  "    pm.expect(body).to.have.property('firstName');",
+                  "    pm.expect(body).to.have.property('items');",
+                  "    pm.expect(body.items).to.be.an('array');",
+                  "    pm.expect(body.items.length).to.be.greaterThan(0);",
+
+                  "    pm.collectionVariables.set('ORDER_ID', body.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shippingAddress\": {\n    \"firstName\": \"Juan\",\n    \"lastName\": \"Perez\",\n    \"email\": \"juan.perez@example.com\",\n    \"address1\": \"Av. 18 de Julio 1234\",\n    \"address2\": \"Apto 5\",\n    \"city\": \"Montevideo\",\n    \"state\": \"Montevideo\",\n    \"zipCode\": \"11000\"\n  },\n  \"items\": [\n    {\n      \"productId\": \"cc789f85-1476-452a-8100-9e74502198e0\",\n      \"name\": \"Reloj Inteligente\",\n      \"quantity\": 1,\n      \"price\": 250\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/orders",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "orders"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar órdenes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('La respuesta es un array de órdenes', function () {",
+                  "    var body = pm.response.json();",
+                  "    pm.expect(body).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('La orden recién creada aparece en el listado', function () {",
+                  "    var body = pm.response.json();",
+                  "    var orderId = pm.collectionVariables.get('ORDER_ID');",
+                  "    var found = body.some(function(order) {",
+                  "        return order.id === orderId;",
+                  "    });",
+                  "    pm.expect(found).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('La orden de checkout aparece en orders', function () {",
+                  "    var body = pm.response.json();",
+                  "    var checkoutOrderId = pm.collectionVariables.get('CHECKOUT_ORDER_ID');",
+                  "    var found = body.some(function(order) {",
+                  "        return order.id === checkoutOrderId;",
+                  "    });",
+                  "    pm.expect(found).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/orders",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "orders"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:8080",
+      "description": ""
+    },
+    {
+      "key": "CUSTOMER_ID",
+      "value": "test-customer-001",
+      "description": ""
+    },
+    {
+      "key": "PRODUCT_ID",
+      "value": "",
+      "description": ""
+    },
+    {
+      "key": "ITEM_ID",
+      "value": "",
+      "description": ""
+    },
+    {
+      "key": "ORDER_ID",
+      "value": "",
+      "description": ""
+    },
+    {
+      "key": "ITEM_TO_DELETE_ID",
+      "value": "",
+      "description": ""
+    },
+    {
+      "key": "CHECKOUT_ORDER_ID",
+      "value": "",
+      "description": ""
+    }
+  ]
+}
