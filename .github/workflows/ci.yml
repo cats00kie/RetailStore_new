@@ -179,6 +179,62 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ──────────────────────────────────────────────
+  # ETAPA 3 — Pruebas funcionales con Newman (Postman CLI)
+  # Levanta toda la aplicación con docker compose y ejecuta
+  # la colección de pruebas contra el API Gateway (UI :8080).
+  # ──────────────────────────────────────────────
+  newman-tests:
+    name: Functional tests (Newman)
+    needs: [build-images]
+    if: always() && !cancelled() && !contains(needs.build-images.result, 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Newman
+        run: npm install -g newman
+
+      - name: Levantar servicios
+        run: docker compose up -d --build
+
+      - name: Esperar que la DB esté lista
+        run: |
+          for i in $(seq 1 20); do
+            if docker compose exec -T db pg_isready -U postgres > /dev/null 2>&1; then
+              echo "DB lista."
+              break
+            fi
+            echo "Esperando DB... intento $i/20"
+            sleep 3
+          done
+          docker compose restart carts
+          sleep 5
+
+      - name: Esperar que el API Gateway esté listo
+        run: |
+          echo "Esperando que UI responda en http://localhost:8080/health..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/health > /dev/null; then
+              echo "API Gateway listo."
+              exit 0
+            fi
+            echo "Intento $i/30 - esperando 5s..."
+            sleep 5
+          done
+          echo "Tiempo de espera agotado. Logs:"
+          docker compose logs
+          exit 1
+
+      - name: Ejecutar pruebas con Newman
+        run: |
+          newman run tests/RetailStore.postman_collection.json \
+            --env-var BASE_URL=http://localhost:8080
+
+      - name: Detener servicios
+        if: always()
+        run: docker compose down -v
+
+  # ──────────────────────────────────────────────
   # Quality gate — Detección de secretos hardcodeados
   # ──────────────────────────────────────────────
   gitleaks:
@@ -230,13 +286,13 @@ jobs:
   # ──────────────────────────────────────────────
   ci-status:
     name: CI Quality Gate
-    needs: [go-lint, python-lint, ts-lint, ts-build, build-images, gitleaks, dependency-check]
+    needs: [go-lint, python-lint, ts-lint, ts-build, build-images, newman-tests, gitleaks, dependency-check]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Verify required jobs
         run: |
-          results="${{ needs.go-lint.result }} ${{ needs.python-lint.result }} ${{ needs.ts-lint.result }} ${{ needs.ts-build.result }} ${{ needs.build-images.result }} ${{ needs.gitleaks.result }} ${{ needs.dependency-check.result }}"
+          results="${{ needs.go-lint.result }} ${{ needs.python-lint.result }} ${{ needs.ts-lint.result }} ${{ needs.ts-build.result }} ${{ needs.build-images.result }} ${{ needs.newman-tests.result }} ${{ needs.gitleaks.result }} ${{ needs.dependency-check.result }}"
           echo "Resultados de jobs: $results"
           for r in $results; do
             if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
