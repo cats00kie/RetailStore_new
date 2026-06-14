@@ -192,7 +192,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Instalar Newman
-        run: npm install -g newman newman-reporter-junit
+        run: npm install -g newman newman-reporter-junitreporter
 
       - name: Levantar servicios
         run: docker compose up -d --build
@@ -229,8 +229,8 @@ jobs:
         run: |
           newman run tests/RetailStore.postman_collection.json \
             --env-var BASE_URL=http://localhost:8080 \
-            --reporters cli,junit \
-            --reporter-junit-export tests/newman-results.xml
+            --reporters cli,junitreporter \
+            --reporter-junitreporter-export tests/newman-results.xml
 
       - name: Publicar resultados de pruebas
         if: always()
