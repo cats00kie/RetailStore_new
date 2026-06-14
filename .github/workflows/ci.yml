@@ -224,6 +224,21 @@ jobs:
           for s in ui admin; do
             (cd "src/$s" && npm install --package-lock-only && npm audit --audit-level=high) || true
           done
+  # ──────────────────────────────────────────────
+  # SonarCloud
+  # ──────────────────────────────────────────────
+
+  sonarqube:
+    name: SonarQube
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   # ──────────────────────────────────────────────
   # Quality gate final — falla si algún job obligatorio falló
