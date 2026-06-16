@@ -11,7 +11,8 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write # Gitleaks comenta hallazgos en los PRs
+  pull-requests: write  # Gitleaks comenta hallazgos en los PRs
+  security-events: write # Trivy sube resultados SARIF a GitHub Security
 
 jobs:
   # ──────────────────────────────────────────────
@@ -179,13 +180,57 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ──────────────────────────────────────────────
+  # Escaneo de vulnerabilidades — Trivy
+  # ──────────────────────────────────────────────
+  trivy-scan:
+    name: Container scan (${{ matrix.service }})
+    needs: [build-images]
+    if: always() && !cancelled() && !contains(needs.build-images.result, 'failure')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [catalog, cart, orders, checkout, ui, admin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: src/${{ matrix.service }}
+          file: src/${{ matrix.service }}/Dockerfile
+          push: false
+          load: true
+          tags: retail-${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: retail-${{ matrix.service }}:${{ github.sha }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Upload results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
+
+  # ──────────────────────────────────────────────
   # ETAPA 3 — Pruebas funcionales con Newman (Postman CLI)
   # Levanta toda la aplicación con docker compose y ejecuta
   # la colección de pruebas contra el API Gateway (UI :8080).
   # ──────────────────────────────────────────────
   newman-tests:
     name: Functional tests (Newman)
-    needs: [build-images]
+    needs: [trivy-scan]
     if: always() && !cancelled() && !contains(needs.build-images.result, 'failure')
     runs-on: ubuntu-latest
     steps:
@@ -286,13 +331,13 @@ jobs:
   # ──────────────────────────────────────────────
   ci-status:
     name: CI Quality Gate
-    needs: [go-lint, python-lint, ts-lint, ts-build, build-images, newman-tests, gitleaks, dependency-check]
+    needs: [go-lint, python-lint, ts-lint, ts-build, build-images, trivy-scan, newman-tests, gitleaks, dependency-check]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Verify required jobs
         run: |
-          results="${{ needs.go-lint.result }} ${{ needs.python-lint.result }} ${{ needs.ts-lint.result }} ${{ needs.ts-build.result }} ${{ needs.build-images.result }} ${{ needs.newman-tests.result }} ${{ needs.gitleaks.result }} ${{ needs.dependency-check.result }}"
+          results="${{ needs.go-lint.result }} ${{ needs.python-lint.result }} ${{ needs.ts-lint.result }} ${{ needs.ts-build.result }} ${{ needs.build-images.result }} ${{ needs.trivy-scan.result }} ${{ needs.newman-tests.result }} ${{ needs.gitleaks.result }} ${{ needs.dependency-check.result }}"
           echo "Resultados de jobs: $results"
           for r in $results; do
             if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
