@@ -206,15 +206,14 @@ jobs:
           tags: retail-${{ matrix.service }}:${{ github.sha }}
           cache-from: type=gha
 
-      - name: Run Trivy scan
+      # Paso 1: generar reporte SARIF con todos los hallazgos (para GitHub Security)
+      - name: Run Trivy scan (SARIF)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: retail-${{ matrix.service }}:${{ github.sha }}
           format: sarif
           output: trivy-${{ matrix.service }}.sarif
-          severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
-          exit-code: '1'
 
       - name: Upload results to GitHub Security
         if: always()
@@ -222,6 +221,16 @@ jobs:
         with:
           sarif_file: trivy-${{ matrix.service }}.sarif
           category: trivy-${{ matrix.service }}
+
+      # Paso 2: quality gate real — falla solo si hay CRITICAL o HIGH con fix
+      - name: Run Trivy scan (quality gate)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: retail-${{ matrix.service }}:${{ github.sha }}
+          format: table
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '1'
 
   # ──────────────────────────────────────────────
   # ETAPA 3 — Pruebas funcionales con Newman (Postman CLI)
@@ -231,7 +240,7 @@ jobs:
   newman-tests:
     name: Functional tests (Newman)
     needs: [trivy-scan]
-    if: always() && !cancelled() && !contains(needs.build-images.result, 'failure')
+    if: always() && !cancelled() && !contains(needs.trivy-scan.result, 'failure')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
