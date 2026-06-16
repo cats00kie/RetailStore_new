@@ -341,7 +341,7 @@ jobs:
   sonarqube:
     name: SonarCloud Quality Gate
     needs: [go-lint, python-lint, ts-lint, ts-build, build-images, gitleaks, dependency-check]
-    if: always()
+    if: always() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -349,12 +349,6 @@ jobs:
           fetch-depth: 0
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-      - name: Check SonarCloud Quality Gate
         uses: SonarSource/sonarcloud-github-action@v2
         with:
           args: >
