@@ -239,8 +239,8 @@ jobs:
   # ──────────────────────────────────────────────
   newman-tests:
     name: Functional tests (Newman)
-    needs: [trivy-scan]
-    if: always() && !cancelled() && !contains(needs.trivy-scan.result, 'failure')
+    needs: [build-images, trivy-scan]
+    if: always() && !cancelled() && !contains(needs.build-images.result, 'failure') && !contains(needs.trivy-scan.result, 'failure')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
