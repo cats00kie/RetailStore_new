@@ -1,11 +1,11 @@
 # Stage 1: instalar dependencias
-FROM python:3.12-alpine AS builder
+FROM python:3.12-slim AS builder
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --require-hashes --no-cache-dir --only-binary=:all: -r requirements.txt
+RUN pip install --no-cache-dir --only-binary=:all: --no-binary=:none: -r requirements.txt
 
 # Stage 2: imagen final minima
-FROM python:3.12-alpine
+FROM python:3.12-slim
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
