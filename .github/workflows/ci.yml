@@ -246,7 +246,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Instalar Newman
-        run: npm install -g newman
+        run: npm install -g newman --ignore-scripts --frozen-lockfile
 
       - name: Levantar servicios
         run: docker compose up -d --build

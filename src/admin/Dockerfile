@@ -2,13 +2,13 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm ci --ignore-scripts 
 COPY . .
 RUN npm run build
 
 # Stage 2: imagen final minima
 FROM node:22-alpine
-RUN apk upgrade --no-cache && npm install -g npm@latest
+RUN apk upgrade --no-cache && npm ci --ignore-scripts -g npm@latest 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
