@@ -3,7 +3,7 @@ FROM golang:1.26-alpine AS builder
 # go-sqlite3 requiere CGO (codigo C), necesitamos gcc y las librerias de sqlite
 RUN apk add --no-cache gcc musl-dev sqlite-dev
 WORKDIR /app
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 # CGO_ENABLED=1 necesario porque go-sqlite3 usa codigo C
