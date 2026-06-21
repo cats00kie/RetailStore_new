@@ -100,3 +100,52 @@ jobs:
           docker push "${REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
           docker push "${REGISTRY}/${ECR_REPO}:latest"
           echo "Imagen publicada: ${REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
+
+  # ──────────────────────────────────────────────
+  # Deploy a ECS — force new deployment por servicio
+  # ──────────────────────────────────────────────
+  deploy:
+    name: Deploy (${{ matrix.service }})
+    needs: [guard, build-push]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [catalog, cart, orders, checkout, ui, admin]
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy en ECS
+        env:
+          ENV: ${{ needs.guard.outputs.environment }}
+        run: |
+          CLUSTER="retail-${ENV}"
+          SERVICE="retail-${{ matrix.service }}-${ENV}"
+
+          echo "Desplegando ${SERVICE} en cluster ${CLUSTER}..."
+
+          aws ecs update-service \
+            --cluster "${CLUSTER}" \
+            --service "${SERVICE}" \
+            --force-new-deployment \
+            --query 'service.deployments[0].{status:status,desired:desiredCount,running:runningCount}' \
+            --output table
+
+      - name: Esperar que el servicio estabilice
+        env:
+          ENV: ${{ needs.guard.outputs.environment }}
+        run: |
+          CLUSTER="retail-${ENV}"
+          SERVICE="retail-${{ matrix.service }}-${ENV}"
+
+          echo "Esperando estabilización de ${SERVICE}..."
+          aws ecs wait services-stable \
+            --cluster "${CLUSTER}" \
+            --services "${SERVICE}"
+          echo "Servicio ${SERVICE} estable."
