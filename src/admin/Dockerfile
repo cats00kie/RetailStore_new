@@ -1,5 +1,5 @@
 # Stage 1: build
-FROM node:22.16-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --ignore-scripts 
@@ -7,8 +7,8 @@ COPY . .
 RUN npm run build
 
 # Stage 2: imagen final minima
-FROM node:22.16-alpine
-RUN apk upgrade --no-cache
+FROM node:22-alpine
+RUN apk upgrade --no-cache && npm install -g npm@latest
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
