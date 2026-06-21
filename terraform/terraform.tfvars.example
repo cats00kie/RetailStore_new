@@ -1,0 +1,66 @@
+# AWS Configuration
+aws_region = "us-east-1"
+environment = "dev"
+app_name = "retailstore"
+
+# VPC Configuration
+vpc_cidr = "10.0.0.0/16"
+availability_zones = ["us-east-1a", "us-east-1b"]
+
+# ECS Configuration
+ecs_task_cpu = "256"
+ecs_task_memory = "512"
+ecs_desired_count = 1
+
+# Database Configuration
+db_instance_class = "db.t3.micro"
+db_allocated_storage = 20
+db_username = "retailadmin"
+db_password = "change-me-in-production" # Change this!
+
+# ElastiCache Configuration
+redis_node_type = "cache.t3.micro"
+redis_num_cache_nodes = 1
+
+# Monitoring
+enable_monitoring = true
+log_retention_days = 7
+
+# HTTPS Configuration (optional)
+enable_https = false
+# acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+
+# Container Images
+# Update these with your ECR repository URLs
+container_images = {
+  ui = {
+    name  = "ui"
+    image = "nginx:latest" # Replace with your actual image
+    port  = 8080
+  }
+  catalog = {
+    name  = "catalog"
+    image = "your-account.dkr.ecr.us-east-1.amazonaws.com/catalog:latest"
+    port  = 8080
+  }
+  cart = {
+    name  = "cart"
+    image = "your-account.dkr.ecr.us-east-1.amazonaws.com/cart:latest"
+    port  = 8080
+  }
+  checkout = {
+    name  = "checkout"
+    image = "your-account.dkr.ecr.us-east-1.amazonaws.com/checkout:latest"
+    port  = 8080
+  }
+  orders = {
+    name  = "orders"
+    image = "your-account.dkr.ecr.us-east-1.amazonaws.com/orders:latest"
+    port  = 8080
+  }
+  admin = {
+    name  = "admin"
+    image = "your-account.dkr.ecr.us-east-1.amazonaws.com/admin:latest"
+    port  = 8081
+  }
+}
