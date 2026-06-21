@@ -208,7 +208,7 @@ jobs:
 
       # Paso 1: generar reporte SARIF con todos los hallazgos (para GitHub Security)
       - name: Run Trivy scan (SARIF)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: retail-${{ matrix.service }}:${{ github.sha }}
           format: sarif
@@ -224,7 +224,7 @@ jobs:
 
       # Paso 2: quality gate real — falla solo si hay CRITICAL o HIGH con fix
       - name: Run Trivy scan (quality gate)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: retail-${{ matrix.service }}:${{ github.sha }}
           format: table
