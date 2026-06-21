@@ -253,16 +253,26 @@ jobs:
 
       - name: Esperar que la DB esté lista
         run: |
-          for i in $(seq 1 20); do
-            if docker compose exec -T db pg_isready -U postgres > /dev/null 2>&1; then
+          for i in $(seq 1 30); do
+            if docker compose exec -T db pg_isready -U retail_user -d cartdb > /dev/null 2>&1; then
               echo "DB lista."
               break
             fi
-            echo "Esperando DB... intento $i/20"
+            echo "Esperando DB... intento $i/30"
             sleep 3
           done
           docker compose restart carts
-          sleep 5
+          echo "Esperando que carts esté listo..."
+          for i in $(seq 1 30); do
+            if docker compose exec -T carts python -c \
+              "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)" \
+              > /dev/null 2>&1; then
+              echo "Carts listo."
+              break
+            fi
+            echo "Intento $i/30 - esperando 3s..."
+            sleep 3
+          done
 
       - name: Esperar que el API Gateway esté listo
         run: |
