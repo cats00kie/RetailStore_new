@@ -8,7 +8,7 @@ RUN npm run build
 
 # Stage 2: imagen final minima
 FROM node:22-alpine
-RUN apk upgrade --no-cache && npm install -g npm@latest
+RUN apk upgrade --no-cache
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
