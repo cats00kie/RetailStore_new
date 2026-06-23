@@ -42,7 +42,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             ENV="${{ github.event.inputs.environment }}"
-            SHA="${{ github.event.workflow_run.head_sha }}"
+            SHA="${{ github.sha }}"
           else
             BRANCH="${{ github.event.workflow_run.head_branch }}"
             SHA="${{ github.event.workflow_run.head_sha }}"
