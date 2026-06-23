@@ -74,8 +74,8 @@ variable "create_alb" {
   default     = true
 }
 
-variable "allowed_security_groups" {
-  description = "SGs permitidos para acceder al servicio (cuando create_alb = false)"
-  type        = list(string)
-  default     = []
+variable "vpc_cidr_block" {
+  description = "CIDR de la VPC, usado para permitir trafico interno (cuando create_alb = false)"
+  type        = string
+  default     = "10.0.0.0/16"
 }

@@ -29,11 +29,24 @@ resource "aws_security_group" "ecs_tasks" {
   description = "Allow traffic to ECS tasks"
   vpc_id      = var.vpc_id
 
-  ingress {
-    from_port       = var.container_port
-    to_port         = var.container_port
-    protocol        = "tcp"
-    security_groups = var.create_alb ? [aws_security_group.alb[0].id] : var.allowed_security_groups
+  dynamic "ingress" {
+    for_each = var.create_alb ? [1] : []
+    content {
+      from_port       = var.container_port
+      to_port         = var.container_port
+      protocol        = "tcp"
+      security_groups = [aws_security_group.alb[0].id]
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = var.create_alb ? [] : [1]
+    content {
+      from_port   = var.container_port
+      to_port     = var.container_port
+      protocol    = "tcp"
+      cidr_blocks = [var.vpc_cidr_block]
+    }
   }
 
   egress {
