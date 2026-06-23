@@ -79,3 +79,21 @@ variable "vpc_cidr_block" {
   type        = string
   default     = "10.0.0.0/16"
 }
+
+variable "environment_variables" {
+  description = "Variables de entorno para el contenedor"
+  type        = map(string)
+  default     = {}
+}
+
+variable "service_discovery_namespace_id" {
+  description = "ID del namespace de Cloud Map para service discovery"
+  type        = string
+  default     = null
+}
+
+variable "service_discovery_name" {
+  description = "Nombre corto del servicio en Cloud Map (usado como DNS)"
+  type        = string
+  default     = null
+}

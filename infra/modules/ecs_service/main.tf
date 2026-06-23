@@ -137,6 +137,7 @@ resource "aws_ecs_task_definition" "this" {
           protocol      = "tcp"
         }
       ]
+      environment = [for k, v in var.environment_variables : { name = k, value = v }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -150,6 +151,25 @@ resource "aws_ecs_task_definition" "this" {
 
   tags = {
     environment = var.environment
+  }
+}
+
+resource "aws_service_discovery_service" "this" {
+  count = var.service_discovery_namespace_id != null ? 1 : 0
+
+  name = var.service_discovery_name != null ? var.service_discovery_name : var.app_name
+
+  dns_config {
+    namespace_id = var.service_discovery_namespace_id
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+    routing_policy = "MULTIVALUE"
+  }
+
+  health_check_custom_config {
+    failure_threshold = 1
   }
 }
 
@@ -172,6 +192,13 @@ resource "aws_ecs_service" "this" {
       target_group_arn = aws_lb_target_group.this[0].arn
       container_name   = var.app_name
       container_port   = var.container_port
+    }
+  }
+
+  dynamic "service_registries" {
+    for_each = var.service_discovery_namespace_id != null ? [1] : []
+    content {
+      registry_arn = aws_service_discovery_service.this[0].arn
     }
   }
 

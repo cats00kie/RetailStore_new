@@ -24,6 +24,11 @@ module "ecr" {
   services    = ["catalog", "cart", "orders", "checkout", "ui", "admin"]
 }
 
+resource "aws_service_discovery_private_dns_namespace" "retail" {
+  name = "retail-${var.environment}.local"
+  vpc  = module.networking.vpc_id
+}
+
 module "ui" {
   source             = "../../modules/ecs_service"
   app_name           = "retail-ui-${var.environment}"
@@ -41,6 +46,12 @@ module "ui" {
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
   create_alb         = true
+  environment_variables = {
+    RETAIL_UI_ENDPOINTS_CATALOG  = "http://catalog.retail-${var.environment}.local:8080"
+    RETAIL_UI_ENDPOINTS_CARTS    = "http://carts.retail-${var.environment}.local:8080"
+    RETAIL_UI_ENDPOINTS_CHECKOUT = "http://checkout.retail-${var.environment}.local:8080"
+    RETAIL_UI_ENDPOINTS_ORDERS   = "http://orders.retail-${var.environment}.local:8080"
+  }
 }
 
 module "catalog" {
@@ -60,6 +71,8 @@ module "catalog" {
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
   create_alb         = false
+  service_discovery_namespace_id = aws_service_discovery_private_dns_namespace.retail.id
+  service_discovery_name         = "catalog"
 }
 
 module "cart" {
@@ -79,6 +92,8 @@ module "cart" {
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
   create_alb         = false
+  service_discovery_namespace_id = aws_service_discovery_private_dns_namespace.retail.id
+  service_discovery_name         = "carts"
 }
 
 module "checkout" {
@@ -98,6 +113,11 @@ module "checkout" {
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
   create_alb         = false
+  service_discovery_namespace_id = aws_service_discovery_private_dns_namespace.retail.id
+  service_discovery_name         = "checkout"
+  environment_variables = {
+    RETAIL_CHECKOUT_ENDPOINTS_ORDERS = "http://orders.retail-${var.environment}.local:8080"
+  }
 }
 
 module "orders" {
@@ -117,6 +137,8 @@ module "orders" {
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
   create_alb         = false
+  service_discovery_namespace_id = aws_service_discovery_private_dns_namespace.retail.id
+  service_discovery_name         = "orders"
 }
 
 module "admin" {
