@@ -155,9 +155,9 @@ resource "aws_ecs_task_definition" "this" {
 }
 
 resource "aws_service_discovery_service" "this" {
-  count = var.service_discovery_namespace_id != null ? 1 : 0
+  count = var.service_discovery_name != null ? 1 : 0
 
-  name = var.service_discovery_name != null ? var.service_discovery_name : var.app_name
+  name = var.service_discovery_name
 
   dns_config {
     namespace_id = var.service_discovery_namespace_id
@@ -166,10 +166,6 @@ resource "aws_service_discovery_service" "this" {
       type = "A"
     }
     routing_policy = "MULTIVALUE"
-  }
-
-  health_check_custom_config {
-    failure_threshold = 1
   }
 }
 
