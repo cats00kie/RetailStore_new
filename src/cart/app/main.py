@@ -23,6 +23,9 @@ def topology():
 
 @app.get("/health")
 def health():
+    if not hasattr(app.state, "cart_service"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Cart service not ready")
     return {"status": "UP"}
 
 

@@ -35,7 +35,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
     outputs:
       environment: ${{ steps.ctx.outputs.environment }}
-      sha:         ${{ steps.ctx.outputs.sha }}
+      sha: ${{ steps.ctx.outputs.sha }}
     steps:
       - name: Resolver entorno y SHA
         id: ctx
@@ -52,8 +52,9 @@ jobs:
               *)     ENV="dev"  ;;
             esac
           fi
-          echo "environment=${ENV}" >> $GITHUB_OUTPUT
-          echo "sha=${SHA}"         >> $GITHUB_OUTPUT
+          # Quote variables when writing to $GITHUB_OUTPUT
+          printf 'environment=%s\n' "$ENV" >> $GITHUB_OUTPUT
+          printf 'sha=%s\n' "$SHA" >> $GITHUB_OUTPUT
 
           echo "Ambiente: $ENV"
           echo "SHA: $SHA"
@@ -79,10 +80,10 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region:            ${{ env.AWS_REGION }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -90,8 +91,8 @@ jobs:
 
       - name: Build y push
         env:
-          REGISTRY:  ${{ steps.login-ecr.outputs.registry }}
-          ENV:       ${{ needs.guard.outputs.environment }}
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ENV: ${{ needs.guard.outputs.environment }}
           IMAGE_TAG: ${{ needs.guard.outputs.sha }}
         run: |
           ECR_REPO="retail-${{ matrix.service }}-${ENV}"
@@ -99,3 +100,87 @@ jobs:
           docker push "${REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
           docker push "${REGISTRY}/${ECR_REPO}:latest"
           echo "Imagen publicada: ${REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
+
+  # ──────────────────────────────────────────────
+  # Deploy a ECS — registra nueva task definition y actualiza el service
+  # ──────────────────────────────────────────────
+  deploy:
+    name: Deploy (${{ matrix.service }})
+    needs: [guard, build-push]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [catalog, cart, orders, checkout, ui, admin]
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Deploy nueva imagen en ECS
+        env:
+          ENV: ${{ needs.guard.outputs.environment }}
+          IMAGE_TAG: ${{ needs.guard.outputs.sha }}
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          SVC="${{ matrix.service }}"
+          ECS_CLUSTER="retail-${ENV}"
+          ECS_SERVICE="retail-${SVC}-${ENV}"
+          ECS_TASK_FAMILY="retail-${SVC}-${ENV}"
+          CONTAINER_NAME="retail-${SVC}-${ENV}"
+          IMAGE_URI="${REGISTRY}/retail-${SVC}-${ENV}:${IMAGE_TAG}"
+
+          echo "Desplegando ${ECS_SERVICE} con imagen ${IMAGE_URI}..."
+
+          # Obtener task definition actual
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "${ECS_TASK_FAMILY}" \
+            --query 'taskDefinition' \
+            --output json)
+
+          # Inyectar nueva imagen en el contenedor correcto
+          NEW_TASK_DEF=$(echo "${TASK_DEF}" | jq \
+            --arg IMAGE "${IMAGE_URI}" \
+            --arg NAME "${CONTAINER_NAME}" \
+            '.containerDefinitions |= map(if .name == $NAME then .image = $IMAGE else . end)')
+
+          # Registrar nueva revisión de la task definition
+          NEW_TASK_ARN=$(aws ecs register-task-definition \
+            --family "${ECS_TASK_FAMILY}" \
+            --cli-input-json "$(echo "${NEW_TASK_DEF}" | jq '{
+              containerDefinitions,
+              networkMode,
+              requiresCompatibilities,
+              cpu,
+              memory,
+              executionRoleArn,
+              taskRoleArn
+            } | with_entries(select(.value != null))')" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          echo "Nueva task definition: ${NEW_TASK_ARN}"
+
+          # Actualizar service con la nueva task definition
+          aws ecs update-service \
+            --cluster "${ECS_CLUSTER}" \
+            --service "${ECS_SERVICE}" \
+            --task-definition "${NEW_TASK_ARN}" \
+            --query 'service.serviceArn' \
+            --output text
+
+          # Esperar que el servicio estabilice
+          echo "Esperando estabilización de ${ECS_SERVICE}..."
+          aws ecs wait services-stable \
+            --cluster "${ECS_CLUSTER}" \
+            --services "${ECS_SERVICE}"
+
+          echo "Servicio ${ECS_SERVICE} desplegado correctamente."
