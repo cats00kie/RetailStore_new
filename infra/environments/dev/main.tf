@@ -60,6 +60,28 @@ module "catalog" {
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
   create_alb         = false
+  container_environment = [
+  {
+    name  = "RETAIL_CATALOG_PERSISTENCE_PROVIDER"
+    value = "postgres"
+  },
+  {
+    name  = "RETAIL_CATALOG_PERSISTENCE_ENDPOINT"
+    value = "${module.catalog_db.endpoint}:5432"
+  },
+  {
+    name  = "RETAIL_CATALOG_PERSISTENCE_DB_NAME"
+    value = "catalogdb"
+  },
+  {
+    name  = "RETAIL_CATALOG_PERSISTENCE_USER"
+    value = "catalog_user"
+  },
+  {
+    name  = "RETAIL_CATALOG_PERSISTENCE_PASSWORD"
+    value = "catalogpassword"
+  }
+]
 }
 
 module "cart" {
@@ -154,6 +176,20 @@ module "orders_db" {
   ecs_security_group_id = module.orders.security_group_id
 
   password = "retailpassword"
+}
+
+module "catalog_db" {
+  source = "../../modules/rds"
+
+  name = "retail-catalog-dev"
+
+  vpc_id = module.networking.vpc_id
+
+  private_subnet_ids = module.networking.private_subnet_ids
+
+  ecs_security_group_id = module.catalog.security_group_id
+
+  password = "catalogpassword"
 }
 
 module "admin" {
