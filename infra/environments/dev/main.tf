@@ -41,6 +41,24 @@ module "ui" {
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
   create_alb         = true
+  container_environment = [
+    {
+      name  = "RETAIL_UI_ENDPOINTS_CATALOG"
+      value = "http://${module.catalog.alb_dns_name}"
+    },
+    {
+      name  = "RETAIL_UI_ENDPOINTS_CARTS"
+      value = "http://${module.cart.alb_dns_name}"
+    },
+    {
+      name  = "RETAIL_UI_ENDPOINTS_CHECKOUT"
+      value = "http://${module.checkout.alb_dns_name}"
+    },
+    {
+      name  = "RETAIL_UI_ENDPOINTS_ORDERS"
+      value = "http://${module.orders.alb_dns_name}"
+    }
+  ]
 }
 
 module "catalog" {
@@ -59,7 +77,7 @@ module "catalog" {
   memory             = var.app_memory
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
-  create_alb         = false
+  create_alb         = true
   container_environment = [
   {
     name  = "RETAIL_CATALOG_PERSISTENCE_PROVIDER"
@@ -100,7 +118,7 @@ module "cart" {
   memory             = var.app_memory
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
-  create_alb         = false
+  create_alb         = true
 }
 
 module "checkout" {
@@ -119,7 +137,7 @@ module "checkout" {
   memory             = var.app_memory
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
-  create_alb         = false
+  create_alb         = true
 }
 
 module "orders" {
@@ -138,7 +156,7 @@ module "orders" {
   memory             = var.app_memory
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
-  create_alb         = false
+  create_alb         = true
   container_environment = [
 
     {
