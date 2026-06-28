@@ -2,6 +2,8 @@ data "aws_iam_role" "labrole" {
   name = "LabRole"
 }
 
+data "aws_caller_identity" "current" {}
+
 module "networking" {
   source             = "../../modules/networking"
   vpc_name           = var.vpc_name
@@ -234,4 +236,20 @@ module "cloudwatch" {
   target_group_arn_suffix = module.ui.target_group_arn_suffix
   alarm_email             = var.alarm_email
   aws_region              = var.aws_region
+}
+
+module "lambda" {
+  source        = "../../modules/lambda"
+  app_name      = "retail"
+  environment   = var.environment
+  sns_topic_arn = module.cloudwatch.sns_topic_arn
+  aws_region    = var.aws_region
+  account_id    = data.aws_caller_identity.current.account_id
+  log_group_names = [
+    "/ecs/retail-ui-${var.environment}",
+    "/ecs/retail-catalog-${var.environment}",
+    "/ecs/retail-orders-${var.environment}",
+    "/ecs/retail-cart-${var.environment}",
+    "/ecs/retail-checkout-${var.environment}",
+  ]
 }

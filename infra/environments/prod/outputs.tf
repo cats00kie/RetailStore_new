@@ -17,3 +17,8 @@ output "sns_topic_arn" {
   description = "ARN del topic SNS para alarmas y alertas Lambda"
   value       = module.cloudwatch.sns_topic_arn
 }
+
+output "lambda_function_name" {
+  description = "Nombre de la Lambda de deteccion de errores"
+  value       = module.lambda.lambda_function_name
+}
