@@ -97,7 +97,7 @@ module "catalog" {
   },
   {
     name  = "RETAIL_CATALOG_PERSISTENCE_PASSWORD"
-    value = "catalogpassword"
+    value = var.catalog_db_password
   }
 ]
 }
@@ -176,7 +176,7 @@ module "orders" {
 
     {
       name  = "RETAIL_ORDERS_PERSISTENCE_PASSWORD"
-      value = "retailpassword"
+      value = var.orders_db_password
     }
 
   ]
@@ -193,7 +193,7 @@ module "orders_db" {
 
   ecs_security_group_id = module.orders.security_group_id
 
-  password = "retailpassword"
+  password = var.orders_db_password
 }
 
 module "catalog_db" {
@@ -207,7 +207,7 @@ module "catalog_db" {
 
   ecs_security_group_id = module.catalog.security_group_id
 
-  password = "catalogpassword"
+  password = var.catalog_db_password
 }
 
 module "admin" {
