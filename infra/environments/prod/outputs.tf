@@ -7,3 +7,13 @@ output "ecr_repository_urls" {
   description = "URLs de los repositorios ECR por servicio"
   value       = module.ecr.repository_urls
 }
+
+output "cloudwatch_dashboard" {
+  description = "Nombre del dashboard de CloudWatch"
+  value       = module.cloudwatch.dashboard_name
+}
+
+output "sns_topic_arn" {
+  description = "ARN del topic SNS para alarmas y alertas Lambda"
+  value       = module.cloudwatch.sns_topic_arn
+}

@@ -223,3 +223,15 @@ module "admin" {
   aws_region         = var.aws_region
   create_alb         = false
 }
+
+module "cloudwatch" {
+  source                  = "../../modules/cloudwatch"
+  app_name                = "retail-ui-${var.environment}"
+  environment             = var.environment
+  cluster_name            = var.cluster_name
+  service_name            = module.ui.service_name
+  alb_arn_suffix          = module.ui.alb_arn_suffix
+  target_group_arn_suffix = module.ui.target_group_arn_suffix
+  alarm_email             = var.alarm_email
+  aws_region              = var.aws_region
+}
