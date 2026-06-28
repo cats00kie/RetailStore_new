@@ -1,0 +1,7 @@
+# Estas son las Passwords hardcodeados en commits anteriores que ya fueron corregidos pero que Gitleaks sigue detectando
+cf704419bfe8b8e4be4a8957853c680db2d1a9c8:infra/environments/dev/main.tf:hashicorp-tf-password:156
+145b77ce9675dc61ffbee51c65d127ee6a61919c:infra/environments/dev/main.tf:hashicorp-tf-password:192
+29f01fe60176119aa15cab141c71e19c7022286d:infra/environments/test/main.tf:hashicorp-tf-password:191
+29f01fe60176119aa15cab141c71e19c7022286d:infra/environments/test/main.tf:hashicorp-tf-password:205
+29f01fe60176119aa15cab141c71e19c7022286d:infra/environments/prod/main.tf:hashicorp-tf-password:191
+29f01fe60176119aa15cab141c71e19c7022286d:infra/environments/prod/main.tf:hashicorp-tf-password:205
