@@ -228,7 +228,7 @@ module "admin" {
   memory             = var.app_memory
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
-  create_alb         = false
+  create_alb         = true
 }
 
 module "cloudwatch" {

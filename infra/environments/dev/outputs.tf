@@ -3,6 +3,11 @@ output "alb_dns_name" {
   value       = "http://${module.ui.alb_dns_name}"
 }
 
+output "admin_alb_dns_name" {
+  description = "URL del panel de administracion"
+  value       = "http://${module.admin.alb_dns_name}"
+}
+
 output "ecr_repository_urls" {
   description = "URLs de los repositorios ECR por servicio"
   value       = module.ecr.repository_urls
