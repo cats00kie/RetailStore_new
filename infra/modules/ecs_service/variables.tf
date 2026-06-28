@@ -8,6 +8,17 @@ variable "environment" {
   type        = string
 }
 
+variable "container_environment" {
+  description = "Environment variables for the ECS container"
+
+  type = list(object({
+    name  = string
+    value = string
+  }))
+
+  default = []
+}
+
 variable "cluster_id" {
   description = "ID del cluster ECS"
   type        = string

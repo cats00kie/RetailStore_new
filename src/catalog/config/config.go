@@ -8,7 +8,7 @@ type AppConfiguration struct {
 
 // DatabaseConfiguration exported
 type DatabaseConfiguration struct {
-	Type           string `env:"RETAIL_CATALOG_PERSISTENCE_PROVIDER,default=in-memory"`
+	Type           string `env:"RETAIL_CATALOG_PERSISTENCE_PROVIDER=postgres"`
 	Endpoint       string `env:"RETAIL_CATALOG_PERSISTENCE_ENDPOINT"`
 	Name           string `env:"RETAIL_CATALOG_PERSISTENCE_DB_NAME,default=catalogdb"`
 	User           string `env:"RETAIL_CATALOG_PERSISTENCE_USER,default=catalog_user"`
