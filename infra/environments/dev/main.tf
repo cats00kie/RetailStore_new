@@ -229,6 +229,24 @@ module "admin" {
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
   create_alb         = true
+  container_environment = [
+    {
+      name  = "DB_HOST"
+      value = module.orders_db.endpoint
+    },
+    {
+      name  = "DB_PORT"
+      value = "5432"
+    },
+    {
+      name  = "DB_USER"
+      value = "retail_user"
+    },
+    {
+      name  = "DB_PASSWORD"
+      value = var.orders_db_password
+    }
+  ]
 }
 
 module "cloudwatch" {
