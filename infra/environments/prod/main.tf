@@ -219,8 +219,8 @@ module "admin" {
   image_url          = "${module.ecr.repository_urls["admin"]}:latest"
   execution_role_arn = data.aws_iam_role.labrole.arn
   container_port     = 8081
-  cpu                = var.app_cpu
-  memory             = var.app_memory
+  cpu                = 512
+  memory             = 1024
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
   create_alb         = true
