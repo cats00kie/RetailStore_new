@@ -223,7 +223,7 @@ module "admin" {
   private_subnet_ids = module.networking.private_subnet_ids
   image_url          = "${module.ecr.repository_urls["admin"]}:latest"
   execution_role_arn = data.aws_iam_role.labrole.arn
-  container_port     = 8081
+  container_port     = 8080
   cpu                = 512
   memory             = 1024
   desired_count      = var.app_desired_count
