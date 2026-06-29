@@ -127,26 +127,30 @@ resource "aws_ecs_task_definition" "this" {
   execution_role_arn       = var.execution_role_arn
 
   container_definitions = jsonencode([
-    {
-      name      = var.app_name
-      image     = var.image_url
-      essential = true
-      portMappings = [
-        {
-          containerPort = var.container_port
-          protocol      = "tcp"
-        }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = "/ecs/${var.app_name}"
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "ecs"
-        }
+  {
+    name      = var.app_name
+    image     = var.image_url
+    essential = true
+
+    environment = var.container_environment
+
+    portMappings = [
+      {
+        containerPort = var.container_port
+        protocol      = "tcp"
+      }
+    ]
+
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        "awslogs-group"         = "/ecs/${var.app_name}"
+        "awslogs-region"        = var.aws_region
+        "awslogs-stream-prefix" = "ecs"
       }
     }
-  ])
+  }
+])
 
   tags = {
     environment = var.environment

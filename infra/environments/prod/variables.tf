@@ -58,3 +58,21 @@ variable "app_desired_count" {
   type        = number
   default     = 1
 }
+
+variable "orders_db_password" {
+  description = "Password para la base de datos de orders"
+  type        = string
+  sensitive   = true
+}
+
+variable "catalog_db_password" {
+  description = "Password para la base de datos de catalog"
+  type        = string
+  sensitive   = true
+}
+
+variable "alarm_email" {
+  description = "Email para notificaciones de alarmas CloudWatch (vacío = sin suscripción)"
+  type        = string
+  default     = ""
+}

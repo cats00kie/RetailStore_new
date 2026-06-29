@@ -10,3 +10,5 @@ private_subnet_cidr_blocks = ["10.0.3.0/24", "10.0.4.0/24"]
 app_cpu           = 256
 app_memory        = 512
 app_desired_count = 1
+
+alarm_email = ""

@@ -2,6 +2,8 @@ data "aws_iam_role" "labrole" {
   name = "LabRole"
 }
 
+data "aws_caller_identity" "current" {}
+
 module "networking" {
   source             = "../../modules/networking"
   vpc_name           = var.vpc_name
@@ -41,6 +43,24 @@ module "ui" {
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
   create_alb         = true
+  container_environment = [
+    {
+      name  = "RETAIL_UI_ENDPOINTS_CATALOG"
+      value = "http://${module.catalog.alb_dns_name}"
+    },
+    {
+      name  = "RETAIL_UI_ENDPOINTS_CARTS"
+      value = "http://${module.cart.alb_dns_name}"
+    },
+    {
+      name  = "RETAIL_UI_ENDPOINTS_CHECKOUT"
+      value = "http://${module.checkout.alb_dns_name}"
+    },
+    {
+      name  = "RETAIL_UI_ENDPOINTS_ORDERS"
+      value = "http://${module.orders.alb_dns_name}"
+    }
+  ]
 }
 
 module "catalog" {
@@ -59,7 +79,29 @@ module "catalog" {
   memory             = var.app_memory
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
-  create_alb         = false
+  create_alb         = true
+  container_environment = [
+  {
+    name  = "RETAIL_CATALOG_PERSISTENCE_PROVIDER"
+    value = "postgres"
+  },
+  {
+    name  = "RETAIL_CATALOG_PERSISTENCE_ENDPOINT"
+    value = "${module.catalog_db.endpoint}:5432"
+  },
+  {
+    name  = "RETAIL_CATALOG_PERSISTENCE_DB_NAME"
+    value = "catalogdb"
+  },
+  {
+    name  = "RETAIL_CATALOG_PERSISTENCE_USER"
+    value = "catalog_user"
+  },
+  {
+    name  = "RETAIL_CATALOG_PERSISTENCE_PASSWORD"
+    value = var.catalog_db_password
+  }
+]
 }
 
 module "cart" {
@@ -78,7 +120,7 @@ module "cart" {
   memory             = var.app_memory
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
-  create_alb         = false
+  create_alb         = true
 }
 
 module "checkout" {
@@ -97,7 +139,7 @@ module "checkout" {
   memory             = var.app_memory
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
-  create_alb         = false
+  create_alb         = true
 }
 
 module "orders" {
@@ -116,7 +158,53 @@ module "orders" {
   memory             = var.app_memory
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
-  create_alb         = false
+  create_alb         = true
+  container_environment = [
+    {
+      name  = "RETAIL_ORDERS_PERSISTENCE_ENDPOINT"
+      value = "${module.orders_db.endpoint}:5432"
+    },
+    {
+      name  = "RETAIL_ORDERS_PERSISTENCE_NAME"
+      value = "orders"
+    },
+    {
+      name  = "RETAIL_ORDERS_PERSISTENCE_USERNAME"
+      value = "retail_user"
+    },
+    {
+      name  = "RETAIL_ORDERS_PERSISTENCE_PASSWORD"
+      value = var.orders_db_password
+    }
+  ]
+}
+
+module "orders_db" {
+  source = "../../modules/rds"
+
+  name = "retail-orders-test"
+
+  vpc_id = module.networking.vpc_id
+
+  private_subnet_ids = module.networking.private_subnet_ids
+
+  ecs_security_group_id = module.orders.security_group_id
+
+  password = var.orders_db_password
+}
+
+module "catalog_db" {
+  source = "../../modules/rds"
+
+  name = "retail-catalog-test"
+
+  vpc_id = module.networking.vpc_id
+
+  private_subnet_ids = module.networking.private_subnet_ids
+
+  ecs_security_group_id = module.catalog.security_group_id
+
+  password = var.catalog_db_password
 }
 
 module "admin" {
@@ -130,10 +218,56 @@ module "admin" {
   private_subnet_ids = module.networking.private_subnet_ids
   image_url          = "${module.ecr.repository_urls["admin"]}:latest"
   execution_role_arn = data.aws_iam_role.labrole.arn
-  container_port     = 8081
-  cpu                = var.app_cpu
-  memory             = var.app_memory
+  container_port     = 8080
+  cpu                = 512
+  memory             = 1024
   desired_count      = var.app_desired_count
   aws_region         = var.aws_region
-  create_alb         = false
+  create_alb         = true
+  container_environment = [
+    {
+      name  = "DB_HOST"
+      value = module.orders_db.endpoint
+    },
+    {
+      name  = "DB_PORT"
+      value = "5432"
+    },
+    {
+      name  = "DB_USER"
+      value = "retail_user"
+    },
+    {
+      name  = "DB_PASSWORD"
+      value = var.orders_db_password
+    }
+  ]
+}
+
+module "cloudwatch" {
+  source                  = "../../modules/cloudwatch"
+  app_name                = "retail-ui-${var.environment}"
+  environment             = var.environment
+  cluster_name            = var.cluster_name
+  service_name            = module.ui.service_name
+  alb_arn_suffix          = module.ui.alb_arn_suffix
+  target_group_arn_suffix = module.ui.target_group_arn_suffix
+  alarm_email             = var.alarm_email
+  aws_region              = var.aws_region
+}
+
+module "lambda" {
+  source        = "../../modules/lambda"
+  app_name      = "retail"
+  environment   = var.environment
+  sns_topic_arn = module.cloudwatch.sns_topic_arn
+  aws_region    = var.aws_region
+  account_id    = data.aws_caller_identity.current.account_id
+  log_group_names = [
+    "/ecs/retail-ui-${var.environment}",
+    "/ecs/retail-catalog-${var.environment}",
+    "/ecs/retail-orders-${var.environment}",
+    "/ecs/retail-cart-${var.environment}",
+    "/ecs/retail-checkout-${var.environment}",
+  ]
 }
