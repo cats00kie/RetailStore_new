@@ -1,13 +1,29 @@
-# Retail Store - Sample App
+# RetailStore
 
-Aplicación de e-commerce basada en microservicios. Permite explorar un catálogo de productos, gestionar un carrito de compras, realizar el checkout y consultar órdenes. Incluye un panel de administración para gestionar productos y ver órdenes.
+E-commerce de microservicios con pipeline DevOps completo sobre AWS ECS Fargate. Incluye catálogo de productos, carrito, checkout, gestión de órdenes y panel de administración.
 
-## Requisitos previos
+---
 
+## Tabla de Contenidos
+
+- [Inicio rápido (local)](#inicio-rápido-local)
+- [Arquitectura de microservicios](#arquitectura-de-microservicios)
+- [Tecnologías por servicio](#tecnologías-por-servicio)
+- [Variables de entorno](#variables-de-entorno)
+- [Estructura del repositorio](#estructura-del-repositorio)
+- [Pipelines CI/CD](#pipelines-cicd)
+- [Despliegue en AWS](#despliegue-en-aws)
+- [Observabilidad](#observabilidad)
+- [Testing](#testing)
+- [Estrategia de ramas](#estrategia-de-ramas)
+
+---
+
+## Inicio rápido (local)
+
+**Requisitos:**
 - [Docker](https://docs.docker.com/get-docker/) 24+
 - [Docker Compose](https://docs.docker.com/compose/install/) v2.20+
-
-## Inicio rápido
 
 ```bash
 docker compose up --build
@@ -18,21 +34,19 @@ docker compose up --build
 | Tienda   | http://localhost:8080 |
 | Admin    | http://localhost:8081 |
 
-Credenciales del admin por defecto: `admin` / `admin`
-
-## Comandos útiles
+Credenciales del admin: `admin` / `admin`
 
 ```bash
 # Detener los servicios
 docker compose down
 
-# Detener y eliminar volúmenes (resetear base de datos)
+# Resetear base de datos
 docker compose down -v
 
 # Reconstruir un servicio específico
 docker compose up --build <servicio>
 
-# Ver logs de un servicio
+# Ver logs
 docker compose logs -f <servicio>
 ```
 
@@ -155,48 +169,208 @@ docker compose logs -f <servicio>
 
 ## Estructura del repositorio
 
+---
+
+## Estructura del repositorio
+
 ```
-app/
+RetailStore/
+├── .github/
+│   └── workflows/
+│       ├── ci.yml          # Pipeline de integración continua
+│       ├── cd.yml          # Pipeline de despliegue continuo
+│       └── infra.yml       # Pipeline de infraestructura (Terraform)
+├── infra/
+│   ├── modules/
+│   │   ├── networking/     # VPC, subnets, IGW, NAT Gateway
+│   │   ├── ecr/            # Repositorios de imágenes Docker
+│   │   ├── ecs/            # Cluster ECS Fargate
+│   │   ├── ecs_service/    # Task Definition + Service + ALB
+│   │   ├── rds/            # Instancias RDS PostgreSQL
+│   │   ├── cloudwatch/     # Dashboard, alarmas y SNS
+│   │   └── lambda/         # Función Lambda + Subscription Filter
+│   └── environments/
+│       ├── dev/            # terraform.tfvars del ambiente DEV
+│       ├── test/           # terraform.tfvars del ambiente TEST
+│       └── prod/           # terraform.tfvars del ambiente PROD
+├── src/
+│   ├── admin/              # TypeScript / Express — panel de administración
+│   ├── cart/               # Python / FastAPI — carrito de compras
+│   ├── catalog/            # Go / Gin — catálogo de productos
+│   ├── checkout/           # TypeScript / NestJS — proceso de pago
+│   ├── orders/             # Go / Gin — gestión de órdenes
+│   └── ui/                 # TypeScript / Express — frontend
+├── tests/
+│   └── RetailStore.postman_collection.json
 ├── docker-compose.yml
-├── init-db.sql
-└── src/
-    ├── catalog/        # Go - Catálogo de productos
-    ├── cart/           # Python - Carrito de compras
-    ├── checkout/       # TypeScript/NestJS - Proceso de pago
-    ├── orders/         # Go - Gestión de órdenes
-    ├── ui/             # TypeScript/Express - Frontend
-    └── admin/          # TypeScript/Express - Panel de administración
+└── init-db.sql
 ```
 
 ---
 
-## Pipeline CI/CD
+## Pipelines CI/CD
 
-El pipeline está definido en `.github/workflows/ci.yml` y se ejecuta en cada push o PR a las ramas `main`, `test` y `develop`.
+Hay tres pipelines independientes, cada uno con su responsabilidad.
 
-### Etapas
+### CI (`ci.yml`)
 
-| Job | Descripción | Servicios |
-|-----|-------------|-----------|
-| `go-lint` | Análisis estático con `golangci-lint` | catalog, orders |
-| `python-lint` | Análisis estático con `flake8` | cart |
-| `ts-lint` | Análisis estático con **ESLint** | ui, admin, checkout |
-| `ts-build` | Compilación TypeScript | ui, admin, checkout |
-| `build-images` | Build de imágenes Docker | todos |
-| `gitleaks` | Detección de secretos hardcodeados | todos |
-| `dependency-check` | Auditoría de dependencias | todos |
-| `ci-status` | Quality gate final | — |
+Se ejecuta en cada push y pull request a `develop`, `test` y `main`. Primero detecta qué microservicio cambió (usando `dorny/paths-filter`) para no correr análisis innecesarios.
 
-### Análisis de código estático (ESLint)
+| Job | Descripción |
+|-----|-------------|
+| `changes` | Detecta qué servicios fueron modificados |
+| `go-lint` | `golangci-lint` + `go vet` — catalog y orders |
+| `python-lint` | `flake8` — cart |
+| `ts-lint` / `ts-build` | ESLint + compilación TypeScript — ui, admin, checkout |
+| `gitleaks` | Detección de secrets hardcodeados |
+| `dependency-check` | `go mod`, `pip-audit`, `npm audit` |
+| `build-images` | Build de las 6 imágenes Docker (sin publicar) |
+| `trivy-scan` | Escaneo de vulnerabilidades; resultados SARIF a GitHub Security |
+| `newman-tests` | `docker compose up` + colección Postman vía Newman |
+| `ci-status` | Quality gate: falla el pipeline si algún job previo falló |
 
-Los servicios TypeScript (`ui`, `admin`, `checkout`) tienen ESLint configurado con el plugin `@typescript-eslint`. La configuración está en el archivo `.eslintrc.json` de cada servicio.
+Solo si `ci-status` pasa, se dispara el pipeline CD.
 
-Para correr el análisis localmente:
+Para correr el linter de TypeScript localmente:
 
 ```bash
-cd src/ui && npm run lint
-cd src/admin && npm run lint
+cd src/ui      && npm run lint
+cd src/admin   && npm run lint
 cd src/checkout && npm run lint
 ```
 
-Los resultados del análisis, hallazgos y recomendaciones de mejora se encuentran en el informe de entrega del proyecto.
+### CD (`cd.yml`)
+
+Se dispara automáticamente por `workflow_run` cuando el CI pasa en `develop`, `test` o `main`. También puede ejecutarse manualmente desde la UI de GitHub Actions.
+
+| Rama | Ambiente AWS |
+|------|-------------|
+| `develop` | DEV |
+| `test` | TEST |
+| `main` | PROD |
+
+Etapas: **Guard** (verifica que CI pasó y resuelve el ambiente) → **Build & Push** (construye las 6 imágenes y las publica en ECR con tag `{sha}` y `latest`) → **Deploy** (actualiza cada ECS Service con la nueva imagen y espera estabilización).
+
+### Infra (`infra.yml`)
+
+Se ejecuta cuando hay cambios en `infra/environments/` o `infra/modules/`. Mapea la rama al ambiente correspondiente y corre `init → validate → plan → apply`. En pull requests solo comenta el plan; el `apply` ocurre únicamente en push.
+
+---
+
+## Despliegue en AWS
+
+### Prerrequisitos
+
+- [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.5
+- [AWS CLI](https://aws.amazon.com/cli/) configurado con credenciales de AWS Academy
+- Bucket S3 para el estado remoto de Terraform: `obligatorio-devops-tfstate`
+
+### GitHub Secrets requeridos
+
+Estos secrets deben estar configurados en el repositorio antes de ejecutar los pipelines:
+
+| Secret | Descripción |
+|--------|-------------|
+| `AWS_ACCESS_KEY_ID` | Credenciales AWS Academy |
+| `AWS_SECRET_ACCESS_KEY` | Credenciales AWS Academy |
+| `AWS_SESSION_TOKEN` | Token de sesión AWS Academy |
+| `ORDERS_DB_PASSWORD` | Contraseña de la instancia RDS de orders |
+| `CATALOG_DB_PASSWORD` | Contraseña de la instancia RDS de catalog |
+
+### Despliegue manual de infraestructura
+
+```bash
+cd infra/environments/dev
+
+terraform init \
+  -backend-config="bucket=obligatorio-devops-tfstate" \
+  -backend-config="key=dev/terraform.tfstate" \
+  -backend-config="region=us-east-1"
+
+terraform plan \
+  -var="orders_db_password=<PASSWORD>" \
+  -var="catalog_db_password=<PASSWORD>"
+
+terraform apply \
+  -var="orders_db_password=<PASSWORD>" \
+  -var="catalog_db_password=<PASSWORD>"
+```
+
+Repetir en `environments/test` y `environments/prod` según corresponda.
+
+### Recursos que se crean por ambiente
+
+| Módulo | Recursos |
+|--------|----------|
+| `networking` | VPC, 2 subnets públicas, 2 subnets privadas, IGW, 1 NAT Gateway |
+| `ecr` | 6 repositorios ECR (uno por microservicio) |
+| `ecs` | 1 cluster ECS Fargate |
+| `ecs_service` | 6 Task Definitions + 6 ECS Services + 6 ALBs |
+| `rds` | 2 instancias RDS PostgreSQL 16 (orders y catalog) |
+| `cloudwatch` | 1 dashboard, 5 alarmas, 1 SNS topic |
+| `lambda` | 1 función Lambda + 5 CloudWatch Log Subscription Filters |
+
+### Configuración de notificaciones por email
+
+Para recibir alertas de CloudWatch por email, completar `alarm_email` en el `terraform.tfvars` del ambiente:
+
+```hcl
+alarm_email = "tu@email.com"
+```
+
+Después del `apply`, AWS enviará un correo de confirmación de suscripción SNS que debe aceptarse para activar las notificaciones.
+
+---
+
+## Observabilidad
+
+El módulo `cloudwatch` despliega un dashboard y cinco alarmas sobre el servicio UI (punto de entrada con ALB):
+
+| Alarma | Condición |
+|--------|-----------|
+| `ecs-cpu-high` | CPU > 80% por 2 períodos de 5 min |
+| `ecs-memory-high` | Memoria > 80% por 2 períodos de 5 min |
+| `alb-5xx-errors` | Errores 5XX > 10 en 5 min |
+| `alb-unhealthy-hosts` | Hosts sin salud >= 1 |
+| `alb-response-time` | Latencia > 2 segundos |
+
+Complementariamente, una función Lambda analiza los logs de los 5 microservicios principales buscando palabras clave de error (`ERROR`, `FATAL`, `PANIC`, `EXCEPTION`, `CRITICAL`) y publica alertas en el mismo SNS topic cuando las detecta.
+
+Cada microservicio escribe sus logs en `/ecs/retail-{servicio}-{env}` con retención de 7 días.
+
+---
+
+## Testing
+
+Las pruebas funcionales se ejecutan automáticamente en el pipeline CI mediante Newman (Postman CLI). La colección está en `tests/RetailStore.postman_collection.json` y cubre los endpoints principales de todos los servicios.
+
+Para correr las pruebas localmente:
+
+```bash
+# Levantar la aplicación
+docker compose up -d --build
+
+# Esperar que los servicios estén listos e instalar Newman
+npm install -g newman
+
+# Ejecutar la colección
+newman run tests/RetailStore.postman_collection.json
+```
+
+---
+
+## Estrategia de ramas
+
+**Código de aplicación** — Git Flow simplificado:
+
+| Rama | Propósito |
+|------|-----------|
+| `main` | Producción estable |
+| `test` | Ambiente de testing/staging |
+| `develop` | Integración continua (DEV) |
+| `feature/*` | Nuevas funcionalidades |
+| `fix/*` | Corrección de bugs |
+
+Flujo estándar: `feature/*` → PR → `develop` → (CI pasa) → merge a `test` → merge a `main`.
+
+**Código de infraestructura** — Feature Branch: cada cambio en `infra/` se desarrolla en una rama dedicada y se integra con PR. El pipeline Infra aplica los cambios automáticamente al hacer merge.
